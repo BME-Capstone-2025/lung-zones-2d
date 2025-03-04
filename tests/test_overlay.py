@@ -1,13 +1,16 @@
 import argparse
+import csv
 import cv2
 import numpy as np
 import tensorflow as tf
 
+# Define keypoint labels
 LABEL_NAMES = ["RACW", "RAAXL", "RCosto", "RPLAPs", "LACW", "LAAXL", "LCosto", "LPlaps"]
 
-
 def parse_args():
-    parser = argparse.ArgumentParser(description="Overlay predicted keypoints on a video")
+    parser = argparse.ArgumentParser(
+        description="Overlay predicted keypoints (red) and ground truth keypoints (green) on a video"
+    )
     parser.add_argument("--input_video", type=str, required=True,
                         help="Path to the input video file")
     parser.add_argument("--output_video", type=str, required=True,
@@ -20,89 +23,141 @@ def parse_args():
                         help="Number of keypoints predicted by the model")
     parser.add_argument("--display", action="store_true",
                         help="If set, display frames during processing")
+    parser.add_argument("--gt_csv", type=str, default=None,
+                        help="Path to a CSV file containing ground truth keypoints")
     return parser.parse_args()
 
-def overlay_keypoints(frame, keypoints, color=(0, 0, 255), radius=5, thickness=-1):
+def overlay_keypoints(frame, keypoints, color, radius=5, thickness=-1):
     """
-    Draw circles on the frame at the given keypoints.
+    Draw circles and labels on the frame at the given keypoint locations.
     
     Args:
-        frame: The original image (numpy array).
-        keypoints: Array of shape (num_keypoints, 2) containing (x, y) coordinates.
-        color: Color of the circles (B, G, R).
-        radius: Radius of the circles.
-        thickness: Thickness of the circles; use -1 for filled circles.
+        frame: Image (numpy array in BGR).
+        keypoints: Array of shape (num_keypoints, 2) with (x, y) coordinates.
+        color: Color tuple in BGR (e.g., (0,0,255) for red).
+        radius: Circle radius.
+        thickness: Circle thickness (-1 for filled).
     """
     for i, point in enumerate(keypoints):
         x, y = int(point[0]), int(point[1])
-        # Skip if the keypoint is (-1, -1) (not visible)
-        if x == -1 and y == -1:
+        if x <= -0.9 and y <= -0.9:
             continue
         cv2.circle(frame, (x, y), radius, color, thickness)
-        cv2.putText(frame, LABEL_NAMES[i], (x+5, y-5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(frame, LABEL_NAMES[i], (x + 5, y - 5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     return frame
+
+def load_ground_truth(gt_csv_path, num_keypoints):
+    """
+    Loads ground truth keypoints from a CSV file.
+    
+    Assumes each CSV row is:
+      filename, x0, x1, ..., x7, y0, y1, ..., y7
+    Returns:
+      A list of numpy arrays of shape (num_keypoints, 2)
+      (assumed to be normalized coordinates).
+    """
+    gt_list = []
+    with open(gt_csv_path, newline="") as csvfile:
+        reader = csv.reader(csvfile)
+        header = next(reader)  # Skip header
+        for row in reader:
+            if len(row) < 1 + num_keypoints * 2:
+                continue
+            try:
+                vals = np.array(list(map(float, row[1:])))
+            except ValueError:
+                continue
+            gt = vals.reshape(2, num_keypoints).T
+            gt_list.append(gt)
+    return gt_list
 
 def main():
     args = parse_args()
     
-    # Parse the input_size argument into a tuple (height, width)
+    # Get the model input dimensions from arguments.
     input_height, input_width = (int(x) for x in args.input_size.split(","))
     model_input_size = (input_height, input_width)
     
-    # Load the trained model
+    # Load your trained model.
     model = tf.keras.models.load_model(args.model_path)
     
-    # Open the input video file
+    # Open the input video.
     cap = cv2.VideoCapture(args.input_video)
     if not cap.isOpened():
         print("Error: Could not open input video.")
         return
     
-    # Get original video properties
     fps = cap.get(cv2.CAP_PROP_FPS)
     orig_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Adjust codec if needed
     
-    # Initialize the video writer
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(args.output_video, fourcc, fps, (orig_width, orig_height))
     
+    # Load ground truth keypoints if provided.
+    gt_keypoints_list = None
+    if args.gt_csv:
+        gt_keypoints_list = load_ground_truth(args.gt_csv, args.num_keypoints)
+        print(f"Loaded ground truth for {len(gt_keypoints_list)} frames from {args.gt_csv}")
+    
+    frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         
-        # Preprocess the frame:
-        # 1. Resize the frame to the model input size
-        resized_frame = cv2.resize(frame, (model_input_size[1], model_input_size[0]))
-        # 2. Convert the image to float32 and add batch dimension
-        input_tensor = tf.convert_to_tensor(resized_frame, dtype=tf.float32)
-        input_tensor = tf.expand_dims(input_tensor, axis=0)
-        # If your model was trained with a specific preprocessing (e.g., normalization),
-        # apply it here (for example, using tf.keras.applications.mobilenet_v2.preprocess_input).
+        # Save a copy of the original frame (for overlay) in BGR.
+        frame_overlay = frame.copy()
         
-        # Run inference on the frame
+        # --- Mimic the data loader pipeline ---
+        # Encode the frame to JPEG in memory.
+        ret2, jpeg_buffer = cv2.imencode('.jpg', frame)
+        if not ret2:
+            print("Error encoding frame to JPEG")
+            continue
+        image_bytes = jpeg_buffer.tobytes()
+        # Decode the JPEG using tf.image.decode_jpeg (this is what your data loader does)
+        frame_tensor = tf.image.decode_jpeg(image_bytes, channels=3)
+        # Resize using tf.image.resize (same as in your loader)
+        frame_resized = tf.image.resize(frame_tensor, model_input_size,
+                                        method=tf.image.ResizeMethod.BILINEAR)
+        # Expand dimensions to create batch dimension.
+        input_tensor = tf.expand_dims(frame_resized, axis=0)
+        # If your training normalized images (e.g., dividing by 255), do it here:
+        # input_tensor = input_tensor / 255.0
+        
+        # --- Run inference ---
         predictions = model.predict(input_tensor)
-        # Reshape predictions into (num_keypoints, 2)
-        keypoints = predictions.reshape(args.num_keypoints, 2)
+        # Reshape predictions to (num_keypoints, 2). Assumes model outputs 16 values.
+        pred_keypoints = predictions.reshape(2, args.num_keypoints).T
         
-        # Scale the keypoints to the original frame size
-        scale_x = orig_width
-        scale_y = orig_height
-        keypoints[:, 0] *= scale_x
-        keypoints[:, 1] *= scale_y
+        # Scale keypoints from normalized coordinates to original frame dimensions.
+        pred_keypoints[:, 0] *= orig_width
+        pred_keypoints[:, 1] *= orig_height
         
-        # Overlay the keypoints on the original frame
-        frame_with_keypoints = overlay_keypoints(frame.copy(), keypoints)
+        # Overlay predicted keypoints in red.
+        frame_overlay = overlay_keypoints(frame_overlay, pred_keypoints, color=(0, 0, 255))
         
-        # Write the processed frame to the output video
-        out.write(frame_with_keypoints)
+        # Overlay ground truth (if provided) in green.
+        if gt_keypoints_list is not None and frame_count < len(gt_keypoints_list):
+            gt_keypoints = np.array(gt_keypoints_list[frame_count])
+            gt_keypoints[:, 0] *= orig_width
+            gt_keypoints[:, 1] *= orig_height
+            frame_overlay = overlay_keypoints(frame_overlay, gt_keypoints, color=(0, 255, 0))
+            # Debug: print keypoints info.
+            print(f"Frame {frame_count}:")
+            print("Ground truth:", gt_keypoints_list[frame_count])
+            print("Predictions:", predictions)
+        
+        out.write(frame_overlay)
         
         if args.display:
-            cv2.imshow("Keypoints Overlay", frame_with_keypoints)
+            cv2.imshow("Overlay", frame_overlay)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+        
+        frame_count += 1
     
     cap.release()
     out.release()
