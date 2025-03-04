@@ -1,9 +1,19 @@
 import os
+import argparse
 import tensorflow as tf
 from model import get_model
-from data_loader import get_dataset  # Assuming your data loader code is in data_loader.py
+from data_loader import get_dataset
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Train keypoint detection model (optionally restore from checkpoint)"
+    )
+    parser.add_argument(
+        "--restore_checkpoint", type=str, default=None,
+        help="Path to the checkpoint file to restore the model from (optional)"
+    )
+    args = parser.parse_args()
+    
     # -----------------------------
     # Configurations for model, training, and data.
     # -----------------------------
@@ -15,24 +25,30 @@ def main():
     }
     
     training_config = {
-        "epochs": ,
+        "epochs": 5000,
         "learning_rate": 1e-4,
         "batch_size": 32,
-        "checkpoint_dir": "./models/checkpoints",
-        "logs_dir": "./logs",
+        "checkpoint_dir": ".\\models\\checkpoints\\overfitsaad",
+        "logs_dir": ".\\logs",
     }
     
     data_config = {
-        "base_dir": "C:/Users/micha/Desktop/BME461",  # Update to your dataset's base directory
+        "base_dir": "C:\\Users\\micha\\Desktop\\data_03032025",  # Update to your dataset's base directory
         "image_size": (224, 224),
-        # You can pass an augmentation function if desired, e.g. augment_fn=apply_chain_augmentations
         "augment_fn": None,
     }
     
     # -----------------------------
-    # Create and compile the model.
+    # Create or restore the model.
     # -----------------------------
-    model = get_model(model_config)
+    if args.restore_checkpoint is not None:
+        # Restore the model from the provided checkpoint
+        model = tf.keras.models.load_model(args.restore_checkpoint)
+        print(f"Restored model from checkpoint: {args.restore_checkpoint}")
+    else:
+        # Create a new model
+        model = get_model(model_config)
+    
     model.summary()
 
     model.compile(
@@ -53,7 +69,7 @@ def main():
     )
     
     val_dataset = get_dataset(
-        base_dir=data_config["base_dir"], # TODO: Make a seperate test dataset directory
+        base_dir=data_config["base_dir"],  # TODO: Use a separate test dataset directory
         batch_size=training_config["batch_size"],
         image_size=data_config["image_size"],
         shuffle=False,
