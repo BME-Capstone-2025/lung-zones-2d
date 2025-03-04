@@ -9,11 +9,12 @@ from data_loader import get_dataset
 from model import get_model
 
 
-CHECKPOINT_DIR = "./models/checkpoints"
+CHECKPOINT_DIR = "./models/checkpoints/overfitsaad"
+LABEL_NAMES = ["RACW", "RAAXL", "RCosto", "RPLAPs", "LACW", "LAAXL", "LCosto", "LPlaps"]
 
 if __name__=="__main__": 
     base_directory = "C:\\Users\\micha\\Desktop\\data_03032025"  # Update this path accordingly.
-    ds = get_dataset(base_directory)
+    ds = get_dataset(base_directory, shuffle=False)
     
     # Ensure loading the latest checkpoint
     checkpoint_files = [f for f in os.listdir(CHECKPOINT_DIR) if os.path.isfile(join(CHECKPOINT_DIR, f))]
@@ -29,5 +30,11 @@ if __name__=="__main__":
     print(f"Restored from checkpoint: {last_checkpoint_file}")
 
     for images, keypoints in ds.take(1):
-        loss, metrics = model.evaluate(images, keypoints)
-        print(f"Loss: {loss}, Metrics: {metrics}")
+        pred = model.predict(images)
+        for i in range(keypoints.shape[0]): 
+            print(f"{'Label':^20}  | {'True':^20} | {'Pred':^20}   Frame: {i}")
+            print("-" * 65)
+            for d in range(8): 
+                print(f"{LABEL_NAMES[d]:^20}    {keypoints[i, d]:^9.3f}, {keypoints[i, d+8]:^9.3f} | {pred[i,d]:^9.3f}, {pred[i,d+8]:^9.3f}")
+            input("...")
+
