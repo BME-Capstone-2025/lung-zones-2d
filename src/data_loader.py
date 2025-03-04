@@ -12,11 +12,7 @@ def parse_csv_line(line):
     parsed = tf.io.decode_csv(line, record_defaults=record_defaults)
     
     filename = parsed[0]
-    # Extract x and y coordinates separately
-    x_coords = parsed[1:9]
-    y_coords = parsed[9:17]
-    # Combine into shape (8, 2): each row is one keypoint (x, y)
-    keypoints = tf.stack([x_coords, y_coords], axis=1)
+    keypoints = parsed[1:17] # x0, x1, ..., x7, y0, y1, ..., y7
     return filename, keypoints
 
 def load_image_and_keypoints(frames_dir, video_name, filename, keypoints, image_size=(224, 224)):
@@ -123,15 +119,3 @@ def apply_chain_augmentations(image, keypoints, image_size):
     # Uncomment the next line if you have tensorflow-addons and implement keypoint rotation.
     # image, keypoints = random_rotation(image, keypoints, image_size)
     return image, keypoints
-
-# ---------------------------------------------------------------------------
-# Example usage:
-if __name__ == '__main__':
-    base_directory = 'C:\Users\micha\Desktop\BME461'  # Update this path accordingly.
-    # Pass your augmentation function here (or use None if no augmentations are desired)
-    ds = get_dataset(base_directory, batch_size=16, image_size=(224, 224), augment_fn=random_brightness)
-    
-    # Iterate over one batch to test the pipeline
-    for images, keypoints in ds.take(1):
-        print("Batch of images shape:", images.shape)
-        print("Batch of keypoints shape:", keypoints.shape)
