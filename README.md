@@ -5,13 +5,10 @@
 
 ```
 project/
-├── data/
-│   ├── raw/                 # Original data (images, annotations, etc.)
-│   └── processed/           # Preprocessed/augmented data ready for training
 ├── models/
-│   ├── checkpoints/         # Model checkpoints during training
+│   ├── checkpoints/         # checkpoints during training
 │   └── saved_model/         # Final saved models (e.g., TensorFlow SavedModel or TFLite)
-├── notebooks/               # Jupyter notebooks for exploration, visualization, and debugging
+├── notebooks/              
 ├── src/
 │   ├── __init__.py          # Makes src a package
 │   ├── data_loader.py       # Custom data loading and preprocessing functions (using tf.data)
