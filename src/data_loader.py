@@ -20,9 +20,13 @@ def load_image_and_keypoints(frames_dir, video_name, filename, keypoints, image_
     Constructs the full image path from the base frames directory, video name, and filename,
     loads the image, and resizes it.
     """
-    video_path = os.path.join(frames_dir, video_name)
-    video_path_tf = tf.constant(video_path)
-    image_path = tf.strings.join([video_path_tf, filename], separator=os.sep)
+
+    frames_path = tf.constant(frames_dir)
+    # video_name_tf = tf.constant(video_name)
+    image_path = tf.strings.join([frames_path, filename], separator=os.sep)
+    # video_path = os.path.join(frames_dir, video_name)
+    # video_path_tf = tf.constant(video_path)
+    # image_path = tf.strings.join([video_path_tf, filename], separator=os.sep)
     
     # Read, decode, and resize the image.
     image = tf.io.read_file(image_path)
@@ -56,15 +60,14 @@ def get_dataset(base_dir, batch_size=32, image_size=(224, 224), shuffle=True, bu
     
     Expects the following structure:
       base_dir/
-        └── label/
-            ├── frame_labels/    # Contains CSV files (one per video)
-            └── frames/          # Contains subdirectories (one per video) with images
+        ├── frame_labels/    # Contains CSV files (one per video)
+        └── frames/          # Contains subdirectories (one per video) with images
               
     Each CSV file name (e.g. video1.csv) is used to locate images in:
-        label/frames/video1/
+        frames/video1/
     """
-    csv_dir = os.path.join(base_dir, "label", "frame_labels")
-    frames_dir = os.path.join(base_dir, "label", "frames")
+    csv_dir = os.path.join(base_dir, "frame_labels")
+    frames_dir = os.path.join(base_dir, "frames")
     
     # List all CSV files in the frame_labels directory
     csv_files = [os.path.join(csv_dir, f) for f in os.listdir(csv_dir) if f.endswith(".csv")]

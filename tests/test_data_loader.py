@@ -7,7 +7,7 @@ from data_loader import get_dataset, random_brightness
 
 
 if __name__ == '__main__':
-    base_directory = r'C:\Users\micha\Desktop\BME461'  # Update this path accordingly.
+    base_directory = r"C:\Users\micha\Desktop\data_03032025"  # Update this path accordingly.
     # Pass your augmentation function here (or use None if no augmentations are desired)
     ds = get_dataset(base_directory, batch_size=16, image_size=(224, 224), augment_fn=random_brightness)
     

@@ -12,7 +12,7 @@ from model import get_model
 CHECKPOINT_DIR = "./models/checkpoints"
 
 if __name__=="__main__": 
-    base_directory = r'C:\Users\micha\Desktop\BME461'  # Update this path accordingly.
+    base_directory = "C:\\Users\\micha\\Desktop\\data_03032025"  # Update this path accordingly.
     ds = get_dataset(base_directory)
     
     # Ensure loading the latest checkpoint
