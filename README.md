@@ -2,6 +2,8 @@
 
 ## Folder Structure: 
 
+
+```
 project/
 ├── data/
 │   ├── raw/                 # Original data (images, annotations, etc.)
@@ -23,3 +25,4 @@ project/
 │   └── config.yaml
 ├── requirements.txt         # List of dependencies
 └── README.md                # Project overview, setup instructions, usage, etc.
+```
